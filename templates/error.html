@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="en-US">
+
+<head>
+    <meta charset="UTF-8" />
+    <link rel="manifest" href="/static/manifest.json" />
+    <link rel="stylesheet" href="/static/main.css" />
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Asap" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Error - Mimir</title>
+</head>
+
+<body>
+    <header>
+        <div class="messageList">
+            {% if messages|length > 0 %}
+            <div class="messagesClear">
+                <a href=".">
+                    <button>
+                        Clear
+                    </button>
+                </a>
+            </div>
+            {% endif %}
+            {% for m in messages %}
+            <div class="message">
+                <p>{{ m }}</p>
+            </div>
+            {% endfor %}
+        </div>
+        <h1>An Error Occurred</h1>
+        <hr>
+    </header>
+    <br>
+    <p>
+        Sorry, but there was an unexpected internal issue. Please provide the following details for the developer:
+    </p>
+    <hr>
+    <p class="warning">
+        <strong>{{ error }}</strong>
+    </p>
+    <footer>
+        <a href="..">
+            <button>
+                &leftarrow; Back
+            </button>
+        </a>
+        <a href="/">
+            <button>
+                Return to Home
+            </button>
+        </a>
+    </footer>
+</body>
+
+</html>

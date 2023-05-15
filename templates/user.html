@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="en-US">
+
+<head>
+    <meta charset="UTF-8" />
+    <link rel="manifest" href="/static/manifest.json" />
+    <link rel="stylesheet" href="/static/main.css" />
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Asap" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta http-equiv="refresh" content="300; url='/logout/auto'" />
+    <title>User - Mimir</title>
+</head>
+
+<body>
+    <header>
+        <div class="messageList">
+            {% if messages|length > 0 %}
+            <div class="messagesClear">
+                <a href=".">
+                    <button>
+                        Clear
+                    </button>
+                </a>
+            </div>
+            {% endif %}
+            {% for m in messages %}
+            <div class="message">
+                <p>{{ m }}</p>
+            </div>
+            {% endfor %}
+        </div>
+        <h1>Mimir</h1>
+        <h2>Welcome, {{ username }}!</h2>
+    </header>
+    <div class="userOptionsList">
+        <div class="userOptionsItem">
+            <a href="/logout">
+                <button>
+                    Logout
+                </button>
+            </a>
+        </div>
+        <div class="userOptionsItem">
+            <a href="/revoke">
+                <button>
+                    Revoke
+                </button>
+            </a>
+        </div>
+        <div class="userOptionsItem">
+            <a href="/user/classes">
+                <button>
+                    Sync Grades
+                </button>
+            </a>
+        </div>
+    </div>
+</body>
+
+</html>

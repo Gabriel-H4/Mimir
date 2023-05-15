@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="en-US">
+
+<head>
+    <meta charset="UTF-8" />
+    <link rel="manifest" href="/static/manifest.json" />
+    <link rel="stylesheet" href="/static/main.css" />
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Asap" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta http-equiv="refresh" content="300; url='/logout/auto'" />
+    <title>Assignments - Mimir</title>
+</head>
+
+<body>
+    <header>
+        <div class="messageList">
+            {% if messages|length > 0 %}
+            <div class="messagesClear">
+                <a href=".">
+                    <button>
+                        Clear
+                    </button>
+                </a>
+            </div>
+            {% endif %}
+            {% for m in messages %}
+            <div class="message">
+                <p>{{ m }}</p>
+            </div>
+            {% endfor %}
+        </div>
+    </header>
+    <h1>Your Assignments</h1>
+    <div class="assignmentList">
+        {% for a in assignments %}
+        <a href="{{ a["workId"] }}/">
+            <div class="assignmentItem">
+                <h4>{{ a["title"] }}</h4>
+                <hr>
+                <p>{{ a["workId"] }}</p>
+            </div>
+        </a>
+        {% endfor %}
+    </div>
+    <br>
+    <br>
+    <footer>
+        <a href="/user/classes">
+            <button>
+                &LeftArrow; Back
+            </button>
+        </a>
+        <a href="/logout">
+            <button>
+                Logout
+            </button>
+        </a>
+    </footer>
+</body>
+
+</html>

@@ -1,0 +1,119 @@
+body {
+  font-family: 'Asap', serif;
+  color: #0d1b2a;
+  background-color: #e0e1dd;
+  box-sizing: border-box;
+}
+
+footer button {
+  padding: 0.5em;
+  margin: 0.5em;
+  color: #e0e1dd;
+  background-color: #0d1b2a;
+  border-width: 2px;
+  border-radius: 0.5rem;
+}
+
+a button:hover {
+  cursor: pointer;
+}
+
+.messagesClear button {
+  padding: 0.5rem;
+  border-radius: 1rem;
+}
+
+.classList, .assignmentList, .userOptionsList {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  flex: 1 1 0;
+  min-width: 0;
+  flex-wrap: wrap;
+  padding: 2%;
+  gap: 1em;
+}
+
+.classList a, .assignmentList a, .userOptionsList a {
+  color: #0d1b2a;
+  text-decoration: none;
+}
+
+.classItem, .assignmentItem, .userOptionsItem {
+  color: #e0e1dd;
+  background-color: #415a77;
+  text-align: center;
+  justify-content: space-around;
+  min-width: 0;
+  padding: 1em;
+  opacity: 0.9;
+  transition: opacity .2s ease-in-out;
+  border-radius: 1rem;
+}
+
+.classItem:hover, .assignmentItem:hover, .userOptionsItem:hover {
+  opacity: 1;
+  transition: opacity .2s ease-in-out;
+}
+
+.classItem hr, .assignmentItem hr {
+  margin-left: 5%;
+  margin-right: 5%;
+}
+
+.assignmentInfoList h3 {
+  font-style: italic;
+}
+
+.warning {
+  font-style: italic;
+}
+
+.warning strong {
+  color: crimson;
+}
+
+.messageList {
+  display: grid;
+  gap: 0.5rem;
+  grid-template-columns: 1fr;
+}
+
+.message {
+  background-color: orange;
+  color: #0d1b2a;
+  opacity: 0.75;
+  padding-left: 1%;
+  padding-right: 1%;
+  border-radius: 1rem;
+}
+
+.message:hover {
+  opacity: 1;
+  transition: opacity .2s ease-in-out;
+}
+
+@media (prefers-color-scheme: dark) {
+  body {
+      background-color: #0d1b2a;
+      color: #e0e1dd;
+  }
+
+  footer button {
+    color: #e0e1dd;
+    background-color: #415A77;
+  }
+
+  .message {
+    opacity: 0.5;
+  }
+
+  .message:hover {
+    opacity: 0.6;
+  }
+
+  .messageClear button {
+    color: #e0e1dd;
+    background-color: #415A77;
+  }
+}

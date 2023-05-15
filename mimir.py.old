@@ -1,0 +1,150 @@
+# pip install google-auth, google-api-python-client
+
+from flask import Flask, session, abort, redirect, request, render_template
+from google.auth.exceptions import GoogleAuthError
+from google_auth_oauthlib.flow import Flow
+import google.auth.transport.requests
+import google.oauth2.credentials
+import google.oauth2.id_token
+from os import environ, path
+from pathlib import Path
+from pip._vendor import cachecontrol
+import requests
+
+app = Flask("Mimir", static_folder="static")
+app.secret_key = "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" # make sure this matches with that's in client_secret.json
+
+creds = None
+
+environ["OAUTHLIB_INSECURE_TRANSPORT"] = "1" # to allow Http traffic for local dev
+environ['OAUTHLIB_RELAX_TOKEN_SCOPE'] = '1' # to allow non-same-order scopes
+
+GOOGLE_CLIENT_ID = "849195692737-qhvrrjkaijhui6iepsl9vjkh748icso0.apps.googleusercontent.com"
+client_secrets_file = path.join(Path(__file__).parent, "client_secrets.json")
+
+flow = Flow.from_client_secrets_file(
+    client_secrets_file=client_secrets_file,
+    scopes=["https://www.googleapis.com/auth/userinfo.profile", "https://www.googleapis.com/auth/userinfo.email", "openid", "https://www.googleapis.com/auth/classroom.courses.readonly", "https://www.googleapis.com/auth/classroom.coursework.students"],
+    redirect_uri="http://127.0.0.1/login/callback"
+)
+
+def needsAuthentication(function):
+    def wrapper(*args, **kwargs):
+        if "google_id" not in session:
+            return abort(401)  # Authorization required
+        else:
+            return function()
+
+    return wrapper
+
+
+def getCredentials():
+    global creds
+    if path.exists(client_secrets_file):
+        creds = google.oauth2.credentials.Credentials.from_authorized_user_file(client_secrets_file=client_secrets_file,
+                                                                                scopes=["https://www.googleapis.com/auth/userinfo.profile",
+                                                                                "https://www.googleapis.com/auth/userinfo.email",
+                                                                                "openid",
+                                                                                "https://www.googleapis.com/auth/classroom.courses.readonly",
+                                                                                "https://www.googleapis.com/auth/classroom.coursework.students"],
+                                                                                redirect_uri="http://127.0.0.1/login/callback")
+    if not creds or not creds.valid:
+        flow = Flow.from_client_secrets_file(
+            client_secrets_file=client_secrets_file,
+            scopes=["https://www.googleapis.com/auth/userinfo.profile", "https://www.googleapis.com/auth/userinfo.email", "openid", "https://www.googleapis.com/auth/classroom.courses.readonly", "https://www.googleapis.com/auth/classroom.coursework.students"],
+            redirect_uri="http://127.0.0.1/login/callback"
+        )
+        credentials = flow.credentials()
+
+
+def getAssignments():
+    NotImplemented
+
+
+@app.route("/login")
+def login():
+    session.clear()
+    authorization_url, state = flow.authorization_url(access_type="offline", prompt="select_account consent", include_granted_scopes="true")
+    session["state"] = state
+    return redirect(authorization_url)
+
+
+@app.route("/login/callback")
+def callback():
+
+    global flow
+
+    try:
+        flow.fetch_token(authorization_response=request.url)
+
+        if not session["state"] == request.args["state"]:
+            abort(500)  # State does not match!
+
+        credentials = flow.credentials()
+        request_session = requests.session()
+        cached_session = cachecontrol.CacheControl(request_session)
+        token_request = google.auth.transport.requests.Request(session=cached_session)
+
+        id_info = google.oauth2.id_token.verify_oauth2_token(
+            id_token=credentials._id_token,
+            request=token_request,
+            audience=GOOGLE_CLIENT_ID
+        )
+        session["google_id"] = id_info.get("sub")
+        session["name"] = id_info.get("name")
+        return redirect("/user")
+
+    except (ValueError, GoogleAuthError) as error:
+        print("There was an error with Authentication:\n" + str(error))
+        return render_template("error.html", error=error)
+
+    except Exception as error:
+        print("There was an unexpected authentication error:\n" + str(error))
+        return render_template("error.html", error=error)
+
+@app.route("/logout")
+def logout():
+    session.clear()
+    return redirect("/")
+
+
+@app.route("/")
+def index():
+    return render_template("index.html")
+
+
+@app.route("/user/")
+# @needsAuthentication
+def greetUser():
+    classList = [
+        {"name": "ProStart", "period": "1A", "classID": "000000a"},
+        {"name": "ProStart", "period": "2A", "classID": "000000b"},
+        {"name": "World of Foods", "period": "4A", "classID": "000001c"},
+        {"name": "ProStart", "period": "1B", "classID": "000000d"},
+        {"name": "ProStart", "period": "2B", "classID": "000000e"},
+        {"name": "World of Foods", "period": "4B", "classID": "000001f"}
+    
+    ]
+    # param userName=session["name"]
+    return render_template("user.html", userName="Gabriel - Not Authenticated", classes=classList)
+
+
+@app.route("/user/classes/<string:classID>/assignments/")
+def getAssignments(classID):
+    assignmentList = [
+        {"name": "Poached Eggs Project", "desc": "How to make poached eggs in class", "assignmentID": "000000abba"},
+        {"name": "Souflee", "desc": "How to make a souflee", "assignmentID": "000000babba"}
+    ]
+    return render_template("assignments.html", assignments=assignmentList)
+
+
+@app.route("/user/classes/<string:classID>/assignments/<assignmentID>/")
+def presentOptions(classID, assignmentID):
+    # Implement ClassID and AssignmentID lookup (ID -> {name:desc:id})
+    selectedClass = {"name": "Placeholder Class", "period": "9X", "classID": "090909X"}
+    selectedAssignment = {"name": "Placeholder Assignment", "desc": "An example assignment, for demo purposes", "assignmentID": "909090Y"}
+    return render_template("assignmentOptions.html", selectedClass=selectedClass, selectedAssignment=selectedAssignment)
+
+
+if __name__ == "__main__":
+    app.run(host="0.0.0.0", port=80, debug=True)

@@ -1,0 +1,9 @@
+# Define rules for Crawlers
+
+# By default, disallow all crawlers
+User-agent: *
+Disallow: /
+
+# Explicitly disallow the Google AdsBot, per Google docs
+User-agent: AdsBot
+Disallow: /

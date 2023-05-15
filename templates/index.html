@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="en-US">
+
+<head>
+    <meta charset="UTF-8" />
+    <link rel="manifest" href="/static/manifest.json" />
+    <link rel="stylesheet" href="/static/main.css" />
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Asap" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Home - Mimir</title>
+</head>
+
+<body>
+    <header>
+        <div class="messageList">
+            {% if messages|length > 0 %}
+            <div class="messagesClear">
+                <a href=".">
+                    <button>
+                        Clear
+                    </button>
+                </a>
+            </div>
+            {% endif %}
+            {% for m in messages %}
+            <div class="message">
+                <p>{{ m }}</p>
+            </div>
+            {% endfor %}
+        </div>
+        <h1>Mimir</h1>
+        <h3>Version {{ mimirVersion }}</h3>
+    </header>
+    <p>
+        Welcome to Mimir! The <b>*only*</b> tool to sync grades from Google Classroom into Infinite Campus!
+    </p>
+    <br>
+    <br>
+    <footer>
+        <a href="/login">
+            <button>Login</button>
+        </a>
+    </footer>
+</body>
+
+</html>

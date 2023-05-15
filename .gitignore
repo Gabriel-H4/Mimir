@@ -1,0 +1,11 @@
+# Ignore logged files
+datadump/
+
+# Ignore virtual environment
+venv/
+
+# Ignore VSCode files
+.vscode/
+
+# Ignore Secrets
+secrets.env
