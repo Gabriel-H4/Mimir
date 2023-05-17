@@ -11,11 +11,12 @@
 ## Requirements
 
 * Python 3.11 (newer verions not yet tested)
-* Incoming Network Port 80/tcp
+* Incoming network port 80/tcp
 * User device outgoing network access to the following domains:
     * `accounts.google.com`
     * `classroom.google.com`
-    * `infinitecampus.com`
+    * `www.infinitecampus.com`
+    * `www.googleapis.com`
 
 <br>
 
@@ -82,8 +83,8 @@ Students work almost exclusively within the Google suite of products for most as
 ### Features:
 
 * View all active classes
-* [ WIP ] View all assignments in an active class
-* [ SOON ] Sync assignment status (late, missing, etc)
+* View all assignments in an active class
+* [ WIP ] Sync assignment status (late, missing, etc)
 * [ SOON ] Sync numerical grades
 * [ SOON ] Sync rubric-based grades
 
@@ -94,7 +95,7 @@ Students work almost exclusively within the Google suite of products for most as
 When using Mimir, the target audience is educators. With that in mind, data security is my number one priority. This Python app uses well-established, and industry-standard tools. Here is a quick rundown of the methods I use to keep data secure:
 
 * Secure, scoped, user authentication with Google OAuth 2.0
-    * Teachers have to consent to each scope I utilize, every time they login
+    * Teachers have to consent to each scope utilized
     * Scopes Used:
         * `openid` - Required for usage of the OpenID Connect API
         * `userinfo.profile` - Access the user's name
@@ -103,6 +104,7 @@ When using Mimir, the target audience is educators. With that in mind, data secu
 * Credentials are only stored in the teacher's browser session while in use
 * The only cookie being used, `session`, expires after 5 minutes of inactivity
     * Activity is defined as a user requesting a page from Mimir: a new one or refreshing the current one
+    * [ **NOTE** ] If the server is running in debug mode, the cookies will last for 15 minutes instead of 5
 * The only network requests made by Mimir are for:
     * User authentication through Google and Infinite Campus
         * [ **NOTE** ] Infinite Campus has not yet been implemented
@@ -111,7 +113,7 @@ When using Mimir, the target audience is educators. With that in mind, data secu
         * [ **NOTE** ] This interaction is not currently in use
 * Secret keys are kept in a .env file
 * All code is in the following files, UTF-8, plaintext:
-    * `mimir2.py` - core of this app, version 2
+    * `mimir.py` - core of this app
     * `requirements.txt` - Python requirements file
     * `templates` - directory containing HTML pages
     * `static/main.css` - CSS for styling the HTML pages
