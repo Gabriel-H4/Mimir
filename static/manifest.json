@@ -2,7 +2,7 @@
     "$schema": "https://json.schemastore.org/web-manifest-combined.json",
     "name": "Mimir",
     "short_name": "Mimir",
-    "start_url": ".",
+    "start_url": "..",
     "display": "standalone",
     "background_color": "#2f4f4f",
     "description": "Easily sync grades from Classroom to Infinite Campus!",

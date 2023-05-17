@@ -145,12 +145,22 @@ def login():
 @app.route("/login/auth/")
 def loginAuth():
     """Provides the callback page for user login, to handle the parsing and storage of tokens"""
+    
+    global client_state
+    
     try:
         googleToken = oauth.google.authorize_access_token()
         session["token"] = googleToken
  
         # TODO: Implement state (csrf) parameter verification
         
+        gState = request.args.get("state")
+
+        if client_state != gState:
+            print("STATE MISMATCH DETECTED")
+            print(f"OLD STATE: {client_state}")
+            print(f"NEW STATE: {gState}, len: {len(gState)}")
+
         return redirect("/user/")
     except OAuthError as error:
         return render_template("error.html", error=f"Authentication processing failed with error: {error}")
