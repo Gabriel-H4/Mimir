@@ -1,5 +1,5 @@
 from authlib.integrations.flask_client import OAuth, OAuthError
-from datetime import datetime, timedelta
+from datetime import timedelta
 from dotenv import load_dotenv
 from flask import Flask, flash, get_flashed_messages, jsonify, redirect, render_template, request, send_from_directory, session
 from functools import wraps
@@ -8,6 +8,7 @@ import json
 from os import environ as env
 from os import urandom
 from sys import argv
+from time import time
 from warnings import warn
 
 load_dotenv("secrets.env")
@@ -18,11 +19,7 @@ app.config.from_prefixed_env()
 oauth = OAuth(app)
 client_state: str = blake2b(urandom(1024)).hexdigest()
 
-oauth.register(
-    name="googleuser",
-    server_metadata_url="https://accounts.google.com/.well-known/openid-configuration",
-    api_base_url="https://oauth2.googleapis.com"
-)
+cookie_expiration_duration = timedelta(minutes=5)
 
 oauth.register(
     name="google",
@@ -31,7 +28,7 @@ oauth.register(
     client_kwargs={
         "scope": "openid https://www.googleapis.com/auth/userinfo.profile https://www.googleapis.com/auth/classroom.courses.readonly https://www.googleapis.com/auth/classroom.student-submissions.students.readonly https://www.googleapis.com/auth/classroom.coursework.me",
         "state": client_state,
-        "prompt": "select_account consent",
+        "prompt": "select_account",
         "include_granted_scopes": "true",
         "hd": "barabooschools.net"
     }
@@ -40,64 +37,48 @@ oauth.register(
 
 def fileLogger(unmodifiedText, modifiedText, title: str):
     """Store the json response from Google's API for debugging and improvement"""
-    currentDate = datetime.today().strftime("%Y-%m-%d")
+    epoch = int(time())
     name = session["token"]["userinfo"]["name"].split()[0]
-    with open(f"datadump/{title}.unmodified.{name}.{currentDate}.json", "w") as unmodifiedFile:
+    with open(f"datadump/{epoch}.{title}.unmodified.{name}.json", "w") as unmodifiedFile:
         json.dump(unmodifiedText, unmodifiedFile, ensure_ascii=True, indent=4)
-    with open(f"datadump/{title}.modified.{name}.{currentDate}.json", "w") as modifiedFile:
+    with open(f"datadump/{epoch}.{title}.modified.{name}.json", "w") as modifiedFile:
         json.dump(modifiedText, modifiedFile, ensure_ascii=True, indent=4)
     
 
-def parseClasses(list: dict) -> dict:
-    """Parse a Google Classroom class list response into a simplified one"""
+def parserInator(type: str, source: str, params: dict) -> dict | None:
+    """Fetch a JSON list from the specified source, using the parameters, and pare it down to the needed elements"""
     try:
-        parsedResult = []
-        for key in list["courses"]:
-            parsedKey = {"name": key["name"], "classID": key["id"]}
+        ogList = oauth.google.get(source, token=session["token"], params=params).json()
+        parsedList = []
+
+        for key in ogList[next(iter(ogList))]:
+            parsedKey = {"itemName": "Name not found", "itemID": "0"}
+
+            if "name" in key:
+                parsedKey["itemName"] = key["name"]
+            elif "title" in key:
+                parsedKey["itemName"] = key["title"]
+            
+            if "id" in key:
+                parsedKey["itemID"] = key["id"]
+
             if "section" in key:
-                parsedKey["section"] = key["section"]
-            else:
-                parsedKey["section"] = "Class Period not found"
-            parsedResult.append(parsedKey)
-        if "nextPageToken" in list:
-            # TODO: Implement nextPage fetching
-            print(f"There is another page of classes available. Please actually fetch it.")
-            raise NotImplementedError
-        fileLogger(list, parsedResult, "classlist")
-        return sorted(parsedResult, key=lambda l: l["name"].lower())
+                parsedKey["itemSection"] = key["section"].removeprefix("Period: ")
+
+            parsedList.append(parsedKey)
+
+        if "nextPageToken" in ogList:
+            params["pageToken"] = ogList["nextPageToken"]
+            parsedList.append(parserInator(source, params))
+
+        fileLogger(ogList, parsedList, type)
+
+        return sorted(parsedList, key=lambda l: l["itemName"].lower())
+
     except Exception as error:
         flash(error)
-        print(f"Could not parse the class list with error: {error}")
-        return None
-    
-
-def parseAssignments(list: dict) -> dict:
-    """Parse a Google Classroom Assignments response dictionary into a simplified one"""
-    try:
-        parsedResult = []
-        for key in list["courseWork"]:
-            parsedWork = {"title": key["title"], "workId": key["id"]}
-            if "maxPoints" in key:
-                parsedWork["maxPoints"] = key["maxPoints"]
-            else:
-                parsedWork["maxPoints"] = "0"
-            parsedResult.append(parsedWork)
-            fileLogger(list, parsedResult, "assignmentlist")
-        return sorted(parsedResult, key=lambda l: l["title"].lower())
-    except Exception as error:
-        flash(error)
-        print(f"Could not parse the assignment list with error: {error}")
-        return None
-
-
-def parseAssignmentObject(assignment: dict) -> dict:
-    """Parse an individual Assignment response dictionary into a simplified one"""
-    try:
-        NotImplementedError
-        fileLogger(assignment, assignment, "assignment")
-    except Exception as error:
-        flash(error)
-        print(f"Could not parse the assignment response with error: {error}")
+        print(f"(Modern) Parsing the list failed with error: {error}")
+        fileLogger(ogList, parsedList, f"FAIL.{type}")
         return None
 
 
@@ -125,9 +106,15 @@ def login_required(f):
 def cookie_expirey():
     """Sets the cookie expiration to five minutes without any new requests to Google"""
 
+    global app
+    global cookie_expiration_duration
+
+    if app.debug:
+        cookie_expiration_duration = timedelta(minutes=15)
+
     # Marking the cookie as permenant allows for customization of its duration
     session.permanent = True
-    app.permanent_session_lifetime = timedelta(minutes=5)
+    app.permanent_session_lifetime = cookie_expiration_duration
 
 
 @app.route("/robots.txt")
@@ -189,30 +176,10 @@ def autologout():
     return redirect("/")
 
 
-# Revokes a user's Google Access token
-@app.route("/revoke/")
-def revokeTokens():
-    """Revoke a user's Google access token"""
-
-    if "token" in session:
-        revocation = oauth.googleuser.post("revoke", token="", params={"token": session["token"]}, headers={"content-type": "application/x-www-form-urlencoded"})
-        statusCode = getattr(revocation ,"status_code")
-        if statusCode == 200:
-            flash("You've successfully revoked Mimir's access to your Google account")
-            return render_template("index.html", messages=get_flashed_messages())
-        else:
-            flash(f"There was an error revoking Mimir's access to your Google account: {statusCode}")
-            return render_template("error.html", error=f"There was an error revoking credentials: {statusCode}")
-    else:
-        flash("No valid token was found to revoke, please sign in and try again")
-        return render_template("index.html", mimirVersion=env["MIMIR_VERSION"], messages=get_flashed_messages())
-
-
 @app.route("/user/")
 @login_required
 def userPage():
     try:
-        flash("default message: hey there!")
         username = getUsername(session["token"]["userinfo"]["name"])
         return render_template("user.html", username=username, messages=get_flashed_messages())
     except Exception as error:
@@ -223,7 +190,7 @@ def userPage():
 @login_required
 def classesPage():
     try:
-        classes = parseClasses(oauth.google.get("v1/courses/", token=session["token"], params={"courseStates": ["ACTIVE"]}).json())
+        classes = parserInator(type="classes", source="v1/courses/", params={"courseStates": ["ACTIVE"]})
         return render_template("classes.html", classes=classes, messages=get_flashed_messages())
     except Exception as error:
         return render_template("error.html", error=f"The user page failed to load with error: {error}")
@@ -233,8 +200,8 @@ def classesPage():
 @login_required 
 def assignmentsPage(classID):
     try:
-        assignments = parseAssignments(oauth.google.get(f"v1/courses/{classID}/courseWork", token=session["token"]).json())
-        # return jsonify(oauth.google.get(f"v1/courses/{classID}/courseWork", token=session["token"]).json())
+        assignments = parserInator(type="assignments", source=f"v1/courses/{classID}/courseWork", params={})
+        # return jsonify(parserInator(source=f"v1/courses/{classID}/courseWork", params={}))
         return render_template("assignments.html", assignments=assignments, messages=get_flashed_messages())
     except Exception as error:
         return render_template("error.html", error=f"The assignments page for class {classID} failed to load with error: {error}")
@@ -244,7 +211,7 @@ def assignmentsPage(classID):
 @login_required
 def assignmentOptionsPage(classID, assignmentID):
     try:
-        # assignment = parseAssignmentObject(oauth.google.get(f"v1/courses/{classID}/courseWork/{assignmentID}", token=session["token"]).json())
+        # assignment = parserInator(type="work", source=f"v1/courses/{classID}/courseWork/{assignmentID}", params={})
         return jsonify(oauth.google.get(f"v1/courses/{classID}/courseWork/{assignmentID}/studentSubmissions", token=session["token"]).json())
         # return render_template("assignmentOptions.html", selectedClass=classID, selectedAssignment=assignmentID, messages=get_flashed_messages())
     except Exception as error:

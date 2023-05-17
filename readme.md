@@ -170,3 +170,15 @@ When using Mimir, the target audience is educators. With that in mind, data secu
         * cryptography: 39.0.0 -> 39.0.1
         * MarkupSafe: 2.1.1 -> 2.1.2
         * python-dotenv: 0.21.0 -> 0.21.1
+* **Version 2.3.3**
+    * Began tracking changes with git
+    * Updated dependencies
+    * Added logging of the original and parsed json to understand differences between student/teacher access
+    * Introduced unified parser
+        * Standardizes the parsed value naming scheme
+        * Recursively handles nextPageTokens
+        * Logs failed parsings
+    * Removed non-functional googleuser and revoke()
+    * Removed annoying required consent
+        * After a user consents once, they should know what they're doing
+    * Increased cookie timeout when in debug mode: 5 minutes -> 15 minutes

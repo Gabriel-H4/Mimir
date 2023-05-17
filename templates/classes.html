@@ -36,11 +36,11 @@
     <h3>Your Classes</h3>
     <div class="classList">
         {% for c in classes %}
-        <a href="/user/classes/{{ c["classID"] }}/assignments">
+        <a href="/user/classes/{{ c["itemID"] }}/assignments">
             <div class="classItem">
-                <h4>{{ c["name"] }}</h4>
+                <h4>{{ c["itemName"] }}</h4>
                 <hr>
-                <p>{{ c["section"] }}</p>
+                <p>{{ c["itemSection"] or "Section not found"}}</p>
             </div>
         </a>
         {% endfor %}
