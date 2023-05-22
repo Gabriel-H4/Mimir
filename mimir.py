@@ -9,7 +9,6 @@ from os import environ as env
 from os import urandom
 from sys import argv
 from time import time
-from warnings import warn
 
 load_dotenv("secrets.env")
 
@@ -48,8 +47,8 @@ def fileLogger(unmodifiedText, modifiedText, title: str):
 def parserInator(type: str, source: str, params: dict) -> dict | None:
     """Fetch a JSON list from the specified source, using the parameters, and pare it down to the needed elements"""
     try:
-        ogList = oauth.google.get(source, token=session["token"], params=params).json()
-        parsedList = []
+        ogList: dict = oauth.google.get(source, token=session["token"], params=params).json()
+        parsedList: list = []
 
         for key in ogList[next(iter(ogList))]:
             parsedKey = {"itemName": "Name not found", "itemID": "0"}
@@ -65,21 +64,24 @@ def parserInator(type: str, source: str, params: dict) -> dict | None:
             if "section" in key:
                 parsedKey["itemSection"] = key["section"].removeprefix("Period: ")
 
+            if "maxPoints" in key:
+                parsedKey["itemMaxPoints"] = key["maxPoints"]
+
             parsedList.append(parsedKey)
 
         if "nextPageToken" in ogList:
             params["pageToken"] = ogList["nextPageToken"]
-            parsedList.append(parserInator(source, params))
-
-        fileLogger(ogList, parsedList, type)
+            parsedList.append(parserInator(type, source, params))
 
         return sorted(parsedList, key=lambda l: l["itemName"].lower())
 
     except Exception as error:
-        flash(error)
-        print(f"(Modern) Parsing the list failed with error: {error}")
-        fileLogger(ogList, parsedList, f"FAIL.{type}")
+        flash(str(error))
+        print(f"Modern parsing of the list failed with error: {error}")
         return None
+    
+    finally:
+        fileLogger(ogList, parsedList, type)
 
 
 def getUsername(username: str):
@@ -120,7 +122,7 @@ def cookie_expirey():
 @app.route("/robots.txt")
 def robots():
     """Allows for navigation to the robots.txt file"""
-    return send_from_directory(app.static_folder, request.path[1:])
+    return send_from_directory(app.static_folder or env["MIMIR_STATIC_PATH"], request.path[1:])
 
 
 # Index page
@@ -211,7 +213,6 @@ def classesPage():
 def assignmentsPage(classID):
     try:
         assignments = parserInator(type="assignments", source=f"v1/courses/{classID}/courseWork", params={})
-        # return jsonify(parserInator(source=f"v1/courses/{classID}/courseWork", params={}))
         return render_template("assignments.html", assignments=assignments, messages=get_flashed_messages())
     except Exception as error:
         return render_template("error.html", error=f"The assignments page for class {classID} failed to load with error: {error}")
@@ -221,9 +222,8 @@ def assignmentsPage(classID):
 @login_required
 def assignmentOptionsPage(classID, assignmentID):
     try:
-        # assignment = parserInator(type="work", source=f"v1/courses/{classID}/courseWork/{assignmentID}", params={})
-        return jsonify(oauth.google.get(f"v1/courses/{classID}/courseWork/{assignmentID}/studentSubmissions", token=session["token"]).json())
-        # return render_template("assignmentOptions.html", selectedClass=classID, selectedAssignment=assignmentID, messages=get_flashed_messages())
+        assignment = parserInator(type="assignmentitem", source=f"v1/courses/{classID}/courseWork/{assignmentID}/studentSubmissions", params={})
+        return render_template("assignmentOptions.html", selectedAssignment=assignmentID, messages=get_flashed_messages())
     except Exception as error:
         return render_template("error.html", error=f"The assignment options page for class {classID} and assignment {assignmentID} failed to load with error: {error}")
 
