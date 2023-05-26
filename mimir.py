@@ -1,14 +1,21 @@
-from authlib.integrations.flask_client import OAuth, OAuthError
+# =========================
+# Imports
+# =========================
+
+from authlib.integrations.flask_client import OAuth, OAuthError, FlaskOAuth2App
 from datetime import timedelta
 from dotenv import load_dotenv
 from flask import Flask, flash, get_flashed_messages, jsonify, redirect, render_template, request, send_from_directory, session
 from functools import wraps
-from hashlib import blake2b
 import json
 from os import environ as env
-from os import urandom
+from secrets import token_urlsafe
 from sys import argv
 from time import time
+
+# =========================
+# Global Setup
+# =========================
 
 load_dotenv("secrets.env")
 
@@ -16,9 +23,10 @@ app = Flask(__name__, static_folder="static", template_folder="templates")
 app.config.from_prefixed_env()
 
 oauth = OAuth(app)
-client_state: str = blake2b(urandom(1024)).hexdigest()
+client_state: str
 
 cookie_expiration_duration = timedelta(minutes=5)
+"""Default cookie expiration time, set to five minutes"""
 
 oauth.register(
     name="google",
@@ -26,29 +34,40 @@ oauth.register(
     api_base_url="https://classroom.googleapis.com",
     client_kwargs={
         "scope": "openid https://www.googleapis.com/auth/userinfo.profile https://www.googleapis.com/auth/classroom.courses.readonly https://www.googleapis.com/auth/classroom.student-submissions.students.readonly https://www.googleapis.com/auth/classroom.coursework.me",
-        "state": client_state,
         "prompt": "select_account",
         "include_granted_scopes": "true",
         "hd": "barabooschools.net"
     }
 )
 
+googleyeyes: FlaskOAuth2App = oauth.google # type: ignore
+"""Create an instance of `oauth.google` to provide typehinting and other IntelliSense features"""
+
+# =========================
+# Logging
+# =========================
 
 def fileLogger(unmodifiedText, modifiedText, title: str):
     """Store the json response from Google's API for debugging and improvement"""
     epoch = int(time())
-    name = session["token"]["userinfo"]["name"].split()[0]
+    name = str(session["token"]["userinfo"]["name"]).split()[0]
     with open(f"datadump/{epoch}.{title}.unmodified.{name}.json", "w") as unmodifiedFile:
         json.dump(unmodifiedText, unmodifiedFile, ensure_ascii=True, indent=4)
     with open(f"datadump/{epoch}.{title}.modified.{name}.json", "w") as modifiedFile:
         json.dump(modifiedText, modifiedFile, ensure_ascii=True, indent=4)
-    
 
-def parserInator(type: str, source: str, params: dict) -> dict | None:
-    """Fetch a JSON list from the specified source, using the parameters, and pare it down to the needed elements"""
+# =========================
+# Parse Data
+# =========================    
+
+def parserInator(callType: str, source: str, params: dict) -> list[dict[str, str]] | None:
+    """Fetch a JSON list from the specified source, using the parameters, and parse it down to the needed elements"""
+
+    ogList: dict = {}
+    parsedList: list[dict[str, str]] = []
+
     try:
-        ogList: dict = oauth.google.get(source, token=session["token"], params=params).json()
-        parsedList: list = []
+        ogList = googleyeyes.get(source, token=session["token"], params=params).json()
 
         for key in ogList[next(iter(ogList))]:
             parsedKey = {"itemName": "Name not found", "itemID": "0"}
@@ -71,7 +90,7 @@ def parserInator(type: str, source: str, params: dict) -> dict | None:
 
         if "nextPageToken" in ogList:
             params["pageToken"] = ogList["nextPageToken"]
-            parsedList.append(parserInator(type, source, params))
+            parsedList = [*parsedList, *parserInator(callType, source, params)] # type: ignore
 
         return sorted(parsedList, key=lambda l: l["itemName"].lower())
 
@@ -81,8 +100,11 @@ def parserInator(type: str, source: str, params: dict) -> dict | None:
         return None
     
     finally:
-        fileLogger(ogList, parsedList, type)
+        fileLogger(ogList, parsedList, callType)
 
+# =========================
+# Fetch User Info
+# =========================
 
 def getUsername(username: str):
     """Fetch the username of the signed in user"""
@@ -90,6 +112,9 @@ def getUsername(username: str):
     username = str(username[0:spaceIndex]) + str(username[spaceIndex:spaceIndex + 2])
     return username
 
+# =========================
+# Enforce logged-in status
+# =========================
 
 # Define a wrapper function to ensure a user is signed in
 def login_required(f):
@@ -103,6 +128,9 @@ def login_required(f):
             return redirect("/login")
     return wrap
 
+# =========================
+# Cookie Duration
+# =========================
 
 @app.before_request
 def cookie_expirey():
@@ -118,12 +146,18 @@ def cookie_expirey():
     session.permanent = True
     app.permanent_session_lifetime = cookie_expiration_duration
 
+# =========================
+# Robots
+# =========================
 
 @app.route("/robots.txt")
 def robots():
     """Allows for navigation to the robots.txt file"""
     return send_from_directory(app.static_folder or env["MIMIR_STATIC_PATH"], request.path[1:])
 
+# =========================
+# Index
+# =========================
 
 # Index page
 @app.route("/")
@@ -134,13 +168,26 @@ def index():
     else:
         return render_template("index.html", mimirVersion=env["MIMIR_VERSION"], messages=get_flashed_messages())
 
+# =========================
+# Login Helpers
+# =========================
 
 # Main login page, authenticates users with Google
 @app.route("/login/")
 def login():
     """Provides the login page, that serves redirect information for a user to sign in"""
+    
+    global client_state
+    client_state = token_urlsafe(16)
     redirectLink = request.base_url + "auth/"
-    return oauth.google.authorize_redirect(redirectLink)
+
+    if "token" in session:
+        return redirect("/user/")
+    else:
+        return googleyeyes.authorize_redirect(redirect_uri=redirectLink, state=client_state)
+    
+
+# TODO: Add token refresh config
 
 
 # Login Callback page, for authentication with Google
@@ -151,14 +198,14 @@ def loginAuth():
     global client_state
     
     try:
-        googleToken = oauth.google.authorize_access_token()
+        googleToken = googleyeyes.authorize_access_token()
         session["token"] = googleToken
- 
-        # TODO: Implement state (csrf) parameter verification
-        
-        gState = request.args.get("state")
+    
+        gState = request.args.get("state") or ""
 
-        if client_state != gState:
+        if client_state == gState:
+            print("The client's state matched. Yay!")
+        else:
             print("STATE MISMATCH DETECTED")
             print(f"OLD STATE: {client_state}")
             print(f"NEW STATE: {gState}, len: {len(gState)}")
@@ -169,6 +216,9 @@ def loginAuth():
     except Exception as error:
         return render_template("error.html", error=f"An unexpected authentication error occured: {error}")
 
+# =========================
+# Logout Helpers
+# =========================
 
 # Log users out by clearing the session cookie
 @app.route("/logout/")
@@ -187,6 +237,9 @@ def autologout():
     flash("Sorry, you were automatically logged out due to inactivity.")
     return redirect("/")
 
+# =========================
+# Logged-in Home Page
+# =========================
 
 @app.route("/user/")
 @login_required
@@ -197,36 +250,48 @@ def userPage():
     except Exception as error:
         return render_template("error.html", error=f"The user page failed to load with error: {error}")
 
+# =========================
+# Class List
+# =========================
 
 @app.route("/user/classes/")
 @login_required
 def classesPage():
     try:
-        classes = parserInator(type="classes", source="v1/courses/", params={"courseStates": ["ACTIVE"]})
+        classes = parserInator(callType="classes", source="v1/courses/", params={"courseStates": ["ACTIVE"]})
         return render_template("classes.html", classes=classes, messages=get_flashed_messages())
     except Exception as error:
         return render_template("error.html", error=f"The user page failed to load with error: {error}")
 
+# =========================
+# Assignment List
+# =========================
 
 @app.route("/user/classes/<string:classID>/assignments/")
 @login_required 
 def assignmentsPage(classID):
     try:
-        assignments = parserInator(type="assignments", source=f"v1/courses/{classID}/courseWork", params={})
+        assignments = parserInator(callType="assignments", source=f"v1/courses/{classID}/courseWork", params={})
         return render_template("assignments.html", assignments=assignments, messages=get_flashed_messages())
     except Exception as error:
         return render_template("error.html", error=f"The assignments page for class {classID} failed to load with error: {error}")
 
+# =========================
+# Assignment Options
+# =========================
 
 @app.route("/user/classes/<string:classID>/assignments/<string:assignmentID>/")
 @login_required
 def assignmentOptionsPage(classID, assignmentID):
     try:
-        assignment = parserInator(type="assignmentitem", source=f"v1/courses/{classID}/courseWork/{assignmentID}/studentSubmissions", params={})
+        assignment = parserInator(callType="assignmentitem", source=f"v1/courses/{classID}/courseWork/{assignmentID}/studentSubmissions", params={})
         return render_template("assignmentOptions.html", selectedAssignment=assignmentID, messages=get_flashed_messages())
     except Exception as error:
         return render_template("error.html", error=f"The assignment options page for class {classID} and assignment {assignmentID} failed to load with error: {error}")
 
+# =========================
+# Runtime Handler
+# =========================
 
 # Run the server on all IPs with port 80, and sets debug mode
 if __name__ == "__main__":
